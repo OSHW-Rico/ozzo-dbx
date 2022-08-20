@@ -2,6 +2,7 @@ package dbx
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"reflect"
@@ -65,7 +66,7 @@ func (q *ModelQuery) Exclude(attrs ...string) *ModelQuery {
 // You may pass a list of the fields to this method to indicate that only those fields should be inserted.
 // You may also call Exclude to exclude some fields from being inserted.
 //
-// If a model has an empty primary key, it is considered auto-incremental and the corresponding struct
+// If a model has an empty/-1(int) or 0(uint) primary key, it is considered auto-incremental and the corresponding struct
 // field will be filled with the generated primary key value after a successful insertion.
 func (q *ModelQuery) Insert(attrs ...string) error {
 	if q.lastError != nil {
@@ -126,7 +127,7 @@ func isAutoInc(value interface{}) bool {
 	v := reflect.ValueOf(value)
 	switch v.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return v.Int() == 0
+		return v.Int() == -1
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
 		return v.Uint() == 0
 	case reflect.Ptr:
@@ -143,21 +144,20 @@ func isAutoInc(value interface{}) bool {
 // By default, it updates *all* public fields in the table, including those nil or empty ones.
 // You may pass a list of the fields to this method to indicate that only those fields should be updated.
 // You may also call Exclude to exclude some fields from being updated.
-func (q *ModelQuery) Update(attrs ...string) error {
+func (q *ModelQuery) Update(attrs ...string) (sql.Result, error) {
 	if q.lastError != nil {
-		return q.lastError
+		return nil, q.lastError
 	}
 	pk := q.model.pk()
 	if len(pk) == 0 {
-		return MissingPKError
+		return nil, MissingPKError
 	}
 
 	cols := q.model.columns(attrs, q.exclude)
 	for name := range pk {
 		delete(cols, name)
 	}
-	_, err := q.builder.Update(q.model.tableName, Params(cols), HashExp(pk)).WithContext(q.ctx).Execute()
-	return err
+	return q.builder.Update(q.model.tableName, Params(cols), HashExp(pk)).WithContext(q.ctx).Execute()
 }
 
 // Delete deletes a row in the table using the primary key specified by the struct model associated with this query.
