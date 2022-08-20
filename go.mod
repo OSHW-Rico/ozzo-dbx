@@ -1,4 +1,4 @@
-module github.com/OSHW-Rico/ozzo-dbx.git
+module github.com/OSHW-Rico/ozzo-dbx
 
 go 1.13
 
